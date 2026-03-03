@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Escala Multimídia</title>
+
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+    body { margin: 0; background: #0b1220; color: #e9eefc; }
+    a { color: inherit; }
+
+    .topbar {
+      padding: 16px 20px; display:flex; gap:16px; align-items:center; justify-content:space-between;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.02);
+    }
+    .brand h1 { margin:0; font-size: 18px; }
+    .brand p { margin:4px 0 0; opacity:.75; font-size: 13px; }
+
+    .controls { display:flex; gap:10px; align-items:center; }
+    .controls button { background:#18233d; color:#e9eefc; border:1px solid rgba(255,255,255,.12); padding:8px 10px; border-radius:10px; cursor:pointer; }
+    .controls .ghost { background: transparent; }
+    #monthLabel { min-width: 170px; text-align:center; opacity:.9; }
+
+    .container { max-width: 1050px; margin: 18px auto; padding: 0 16px; display:grid; gap:14px; }
+    .card { background:#0f1a33; border:1px solid rgba(255,255,255,.10); border-radius:16px; padding:14px; }
+    .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    label { font-size: 12px; opacity:.8; margin-right: 6px; }
+    input, select {
+      background:#0b1220; color:#e9eefc; border:1px solid rgba(255,255,255,.12);
+      border-radius:12px; padding:10px 12px; outline:none;
+    }
+    button.primary { background:#2b63ff; border:none; padding:10px 12px; border-radius:12px; color:#fff; cursor:pointer; }
+    button.primary:hover { filter: brightness(1.05); }
+    .status { margin-top: 10px; min-height: 18px; font-size: 13px; opacity:.9; }
+    .muted { opacity:.7; font-size: 12px; }
+
+    .calendar .dow { display:grid; grid-template-columns: repeat(7, 1fr); gap:8px; opacity:.75; font-size: 12px; padding: 0 6px 8px; }
+    .calendar .grid { display:grid; grid-template-columns: repeat(7, 1fr); gap:8px; }
+    .day {
+      background:#0b1220; border:1px solid rgba(255,255,255,.10); border-radius:14px; padding:10px; min-height: 92px;
+      cursor:pointer;
+    }
+    .day.off { opacity:.35; cursor:default; }
+    .day .num { font-weight:600; font-size: 13px; }
+    .badges { margin-top:8px; display:grid; gap:6px; font-size: 12px; }
+    .badge { padding:6px 8px; border-radius: 10px; border:1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.02); }
+    .badge strong { margin-right: 6px; }
+
+    .modal { position: fixed; inset: 0; background: rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; padding: 14px; }
+    .modal.hidden { display:none; }
+    .modal-content {
+      width: min(980px, 100%); max-height: 92vh; overflow:auto;
+      background:#0f1a33; border:1px solid rgba(255,255,255,.10); border-radius:16px;
+    }
+    .modal-header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:14px; border-bottom:1px solid rgba(255,255,255,.08); }
+    .modal-header button { background: transparent; border:1px solid rgba(255,255,255,.12); padding: 8px 10px; border-radius:10px; color:#e9eefc; cursor:pointer; }
+
+    .day-body { padding: 14px; display:grid; gap:14px; }
+    .turno { border:1px solid rgba(255,255,255,.10); border-radius:14px; padding:12px; background: rgba(255,255,255,.02); }
+    .turno h3 { margin:0 0 10px; }
+    .culto { border:1px solid rgba(255,255,255,.10); border-radius:14px; padding:12px; background: #0b1220; margin-top: 10px; }
+    .culto-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+    .culto-title { font-weight:600; }
+    .roles { margin-top: 10px; display:grid; gap:8px; }
+    .role { display:flex; justify-content:space-between; gap:10px; align-items:center; padding: 8px 10px; border:1px solid rgba(255,255,255,.10); border-radius:12px; }
+    .role .who { opacity:.85; }
+    .role .actions { display:flex; gap:8px; }
+    .role button { background:#18233d; border:1px solid rgba(255,255,255,.12); padding: 8px 10px; border-radius:10px; color:#e9eefc; cursor:pointer; }
+    .role button:disabled { opacity:.4; cursor:not-allowed; }
+
+    .admin hr { border: 0; border-top: 1px solid rgba(255,255,255,.08); margin: 14px 0; }
+    .audit { margin-top: 10px; font-size: 12px; }
+    .audit table { width:100%; border-collapse: collapse; }
+    .audit th, .audit td { border-bottom:1px solid rgba(255,255,255,.10); padding: 8px; text-align:left; vertical-align: top; }
+    .audit th { opacity:.8; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+  </style>
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>Escala Multimídia</h1>
+      <p>Calendário de cultos. Clique em um dia para ver detalhes e se cadastrar nas vagas.</p>
+    </div>
+    <div class="controls">
+      <button id="prevMonth">◀</button>
+      <div id="monthLabel"></div>
+      <button id="nextMonth">▶</button>
+      <button id="openAdmin" class="ghost">Admin</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <div class="row">
+        <label>Seu nome</label>
+        <input id="nameInput" placeholder="Digite seu nome" />
+        <button id="saveName" class="primary">Salvar</button>
+      </div>
+      <div class="muted" style="margin-top:10px;">
+        Regras: 1 vaga por função (Mesa, Corte, Cam 1, Cam 2, Cam 3, Vmix). Máximo 2 inscrições por pessoa no mesmo dia.
+        Remover/Substituir somente até 7 dias antes da data.
+      </div>
+      <div id="status" class="status"></div>
+    </section>
+
+    <section class="calendar card">
+      <div class="dow">
+        <div>Dom</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div>
+      </div>
+      <div id="grid" class="grid"></div>
+    </section>
+  </main>
+
+  <!-- Day modal -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h2 id="modalTitle"></h2>
+          <p class="muted">Vagas por culto: Mesa, Corte, Cam 1, Cam 2, Cam 3, Vmix (1 cada)</p>
+        </div>
+        <button id="closeModal">✕</button>
+      </div>
+      <div id="dayBody" class="day-body"></div>
+    </div>
+  </div>
+
+  <!-- Admin modal -->
+  <div id="adminModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h2>Admin</h2>
+          <p class="muted">Cadastrar/editar cultos e ver auditoria</p>
+        </div>
+        <button id="closeAdmin">✕</button>
+      </div>
+
+      <div class="admin" style="padding:14px;">
+        <div class="row">
+          <label>Código admin</label>
+          <input id="adminCode" placeholder="Código" />
+          <button id="saveAdmin" class="primary">Salvar</button>
+        </div>
+
+        <hr />
+
+        <h3 style="margin:0 0 8px;">Criar culto</h3>
+        <div class="row">
+          <label>Data</label>
+          <input id="admDate" type="date" />
+          <label>Turno</label>
+          <select id="admTurno">
+            <option value="MANHA">Manhã</option>
+            <option value="TARDE">Tarde</option>
+            <option value="NOITE">Noite</option>
+          </select>
+          <label>Hora</label>
+          <input id="admHora" type="time" />
+        </div>
+        <div class="row">
+          <label>Título</label>
+          <input id="admTitulo" placeholder="Ex: Culto 19h" />
+          <button id="admCreate" class="primary">Criar</button>
+        </div>
+
+        <hr />
+
+        <h3 style="margin:0 0 8px;">Auditoria</h3>
+        <div class="row">
+          <label>De</label><input id="auditFrom" type="date" />
+          <label>Até</label><input id="auditTo" type="date" />
+          <button id="loadAudit" class="primary">Carregar</button>
+        </div>
+
+        <div id="auditTable" class="audit"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // === CONFIG ===
+    // Cole aqui a URL do seu Web App do Apps Script (Deploy > Web app)
+    const API_URL = "https://script.google.com/macros/s/AKfycby2cYL0lMX9i72Tf1th3FxvoEaWZgDlne17LGTV_LTmjJV2aLvfUE_vVYx-lMrSiYBY/exec";
+
+    const ROLES = ["Mesa", "Corte", "Cam 1", "Cam 2", "Cam 3", "Vmix"];
+    const TURNOS = [
+      { key: "MANHA", label: "Manhã" },
+      { key: "TARDE", label: "Tarde" },
+      { key: "NOITE", label: "Noite" },
+    ];
+
+    const $ = (id) => document.getElementById(id);
+    const state = {
+      year: null,
+      month: null, // 0-11
+      calendarSummary: null,
+      selectedDate: null,
+      dayData: null,
+    };
+
+    function todayLocalISO() {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${dd}`;
+    }
+
+    function monthRangeISO(year, month0) {
+      const first = new Date(year, month0, 1);
+      const last = new Date(year, month0 + 1, 0);
+      const from = `${first.getFullYear()}-${String(first.getMonth()+1).padStart(2,"0")}-01`;
+      const to = `${last.getFullYear()}-${String(last.getMonth()+1).padStart(2,"0")}-${String(last.getDate()).padStart(2,"0")}`;
+      return { from, to };
+    }
+
+    function monthLabel(year, month0) {
+      const m = new Date(year, month0, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+      return m.charAt(0).toUpperCase() + m.slice(1);
+    }
+
+    function setStatus(msg, isError=false) {
+      const el = $("status");
+      el.textContent = msg || "";
+      el.style.color = isError ? "#ff7b7b" : "#b9c8ff";
+    }
+
+    function loadFromStorage() {
+      $("nameInput").value = localStorage.getItem("mm_name") || "";
+      $("adminCode").value = localStorage.getItem("mm_admin") || "";
+    }
+
+    function saveToStorage() {
+      localStorage.setItem("mm_name", $("nameInput").value.trim());
+      localStorage.setItem("mm_admin", $("adminCode").value.trim());
+    }
+
+    async function apiGet(params) {
+      if (!API_URL || API_URL.includes("COLE_AQUI")) throw new Error("Configure a API_URL no topo do arquivo (URL do Web App).");
+      const url = new URL(API_URL);
+      Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
+      const res = await fetch(url.toString());
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "Erro API");
+      return json;
+    }
+
+    async function apiPost(body) {
+      if (!API_URL || API_URL.includes("COLE_AQUI")) throw new Error("Configure a API_URL no topo do arquivo (URL do Web App).");
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "Erro API");
+      return json;
+    }
+
+    function buildCalendarGrid(year, month0, summary) {
+      $("monthLabel").textContent = monthLabel(year, month0);
+
+      const grid = $("grid");
+      grid.innerHTML = "";
+
+      const first = new Date(year, month0, 1);
+      const startDow = first.getDay(); // 0=Dom
+      const daysInMonth = new Date(year, month0 + 1, 0).getDate();
+
+      // show prev month tail to align
+      const prevDays = startDow;
+      const prevLast = new Date(year, month0, 0).getDate();
+
+      // total cells 42 (6 semanas)
+      const cells = 42;
+
+      for (let i = 0; i < cells; i++) {
+        const cell = document.createElement("div");
+        cell.className = "day";
+
+        let dayNum, inMonth, dateISO;
+
+        if (i < prevDays) {
+          dayNum = prevLast - prevDays + 1 + i;
+          inMonth = false;
+          const d = new Date(year, month0 - 1, dayNum);
+          dateISO = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+          cell.classList.add("off");
+        } else if (i >= prevDays + daysInMonth) {
+          dayNum = i - (prevDays + daysInMonth) + 1;
+          inMonth = false;
+          const d = new Date(year, month0 + 1, dayNum);
+          dateISO = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+          cell.classList.add("off");
+        } else {
+          dayNum = i - prevDays + 1;
+          inMonth = true;
+          const d = new Date(year, month0, dayNum);
+          dateISO = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+        }
+
+        cell.innerHTML = `<div class="num">${dayNum}</div><div class="badges"></div>`;
+
+        const badges = cell.querySelector(".badges");
+        const dayInfo = summary?.days?.[dateISO];
+
+        if (dayInfo) {
+          TURNOS.forEach(t => {
+            const b = dayInfo[t.key];
+            if (b && b.cultos > 0) {
+              const div = document.createElement("div");
+              div.className = "badge";
+              div.innerHTML = `<strong>${t.label}</strong> ${b.cultos} culto(s) • ${b.filled}/${b.capacity}`;
+              badges.appendChild(div);
+            }
+          });
+        }
+
+        if (inMonth) {
+          cell.addEventListener("click", () => openDay(dateISO));
+        }
+
+        grid.appendChild(cell);
+      }
+    }
+
+    async function loadMonth(year, month0) {
+      setStatus("Carregando calendário...");
+      const { from, to } = monthRangeISO(year, month0);
+      const summary = await apiGet({ action: "calendar", from, to });
+      state.calendarSummary = summary;
+      buildCalendarGrid(year, month0, summary);
+      setStatus("");
+    }
+
+    function openModal() { $("modal").classList.remove("hidden"); }
+    function closeModal() { $("modal").classList.add("hidden"); }
+    function openAdminModal() { $("adminModal").classList.remove("hidden"); }
+    function closeAdminModal() { $("adminModal").classList.add("hidden"); }
+
+    function escapeHtml(s) {
+      return (s || "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[c]));
+    }
+
+    async function openDay(dateISO) {
+      state.selectedDate = dateISO;
+      $("modalTitle").textContent = new Date(dateISO + "T00:00:00").toLocaleDateString("pt-BR", { weekday:"long", day:"2-digit", month:"long", year:"numeric" });
+
+      setStatus("Carregando dia...");
+      const day = await apiGet({ action: "list", date: dateISO });
+      state.dayData = day;
+      renderDay(day);
+      setStatus("");
+      openModal();
+    }
+
+    function renderDay(day) {
+      const body = $("dayBody");
+      body.innerHTML = "";
+
+      TURNOS.forEach(t => {
+        const cultos = day.cultos[t.key] || [];
+        const turnoDiv = document.createElement("div");
+        turnoDiv.className = "turno";
+        turnoDiv.innerHTML = `<h3>${t.label}</h3>`;
+
+        if (cultos.length === 0) {
+          const p = document.createElement("p");
+          p.className = "muted";
+          p.textContent = "Sem cultos cadastrados.";
+          turnoDiv.appendChild(p);
+          body.appendChild(turnoDiv);
+          return;
+        }
+
+        cultos.forEach(c => {
+          const filled = Object.values(c.roles).filter(v => v).length;
+
+          const cultoEl = document.createElement("div");
+          cultoEl.className = "culto";
+          cultoEl.innerHTML = `
+            <div class="culto-head">
+              <div>
+                <div class="culto-title">${escapeHtml(c.hora)} — ${escapeHtml(c.titulo || "Culto")}</div>
+                <div class="muted">${filled}/6 preenchidas</div>
+              </div>
+            </div>
+            <div class="roles" id="roles-${c.culto_id}"></div>
+          `;
+
+          const rolesWrap = cultoEl.querySelector(`#roles-${c.culto_id}`);
+
+          ROLES.forEach(role => {
+            const who = c.roles[role];
+            const roleRow = document.createElement("div");
+            roleRow.className = "role";
+
+            const name = $("nameInput").value.trim();
+            const canAct = name.length >= 2;
+
+            roleRow.innerHTML = `
+              <div>
+                <div><strong>${escapeHtml(role)}</strong></div>
+                <div class="who">${who ? escapeHtml(who) : "<span class='muted'>Vago</span>"}</div>
+              </div>
+              <div class="actions"></div>
+            `;
+
+            const actions = roleRow.querySelector(".actions");
+
+            const btnEnter = document.createElement("button");
+            btnEnter.textContent = "Entrar";
+            btnEnter.disabled = !!who || !canAct;
+            btnEnter.addEventListener("click", async (ev) => {
+              ev.stopPropagation();
+              try {
+                await apiPost({ action: "signup", culto_id: c.culto_id, name, role });
+                await openDay(state.selectedDate); // refresh
+              } catch (e) {
+                alert(e.message);
+              }
+            });
+
+            const btnLeave = document.createElement("button");
+            btnLeave.textContent = "Sair";
+            // sem autenticação: só deixa "sair" se o nome for exatamente o ocupante
+            btnLeave.disabled = !who || !canAct || (who.toLowerCase() !== name.toLowerCase());
+            btnLeave.addEventListener("click", async (ev) => {
+              ev.stopPropagation();
+              try {
+                await apiPost({ action: "remove", culto_id: c.culto_id, name });
+                await openDay(state.selectedDate);
+              } catch (e) {
+                alert(e.message);
+              }
+            });
+
+            const btnSub = document.createElement("button");
+            btnSub.textContent = "Substituir";
+            btnSub.disabled = !who || !canAct;
+            btnSub.addEventListener("click", async (ev) => {
+              ev.stopPropagation();
+              const from = prompt(`Substituir a vaga "${role}". Quem está saindo?`, who || "");
+              if (!from) return;
+              const to = prompt("Quem vai entrar no lugar?", "");
+              if (!to) return;
+              try {
+                await apiPost({ action: "substitute", culto_id: c.culto_id, role, from, to });
+                await openDay(state.selectedDate);
+              } catch (e) {
+                alert(e.message);
+              }
+            });
+
+            actions.appendChild(btnEnter);
+            actions.appendChild(btnLeave);
+            actions.appendChild(btnSub);
+
+            rolesWrap.appendChild(roleRow);
+          });
+
+          turnoDiv.appendChild(cultoEl);
+        });
+
+        body.appendChild(turnoDiv);
+      });
+    }
+
+    /******** Admin ********/
+    function setAdminDefaults() {
+      const today = todayLocalISO();
+      $("admDate").value = state.selectedDate || today;
+      $("auditTo").value = state.selectedDate || today;
+
+      // últimos 30 dias
+      const d = new Date((state.selectedDate || today) + "T00:00:00");
+      d.setDate(d.getDate() - 30);
+      $("auditFrom").value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    }
+
+    async function adminCreate() {
+      const adminCode = $("adminCode").value.trim();
+      const date = $("admDate").value;
+      const turno = $("admTurno").value;
+      const hora = $("admHora").value;
+      const titulo = $("admTitulo").value.trim();
+
+      if (!adminCode) return alert("Informe o código admin.");
+      try {
+        await apiPost({ action: "admin_create_culto", adminCode, date, turno, hora, titulo });
+        alert("Culto criado.");
+        await loadMonth(state.year, state.month);
+        if (state.selectedDate === date) await openDay(date);
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function loadAudit() {
+      const adminCode = $("adminCode").value.trim();
+      if (!adminCode) return alert("Informe o código admin.");
+      const from = $("auditFrom").value;
+      const to = $("auditTo").value;
+
+      try {
+        const json = await apiGet({ action: "audit", adminCode, from, to });
+        renderAudit(json.logs || []);
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    function renderAudit(logs) {
+      const wrap = $("auditTable");
+      if (!logs.length) {
+        wrap.innerHTML = `<p class="muted">Sem logs no período.</p>`;
+        return;
+      }
+      const rows = logs.slice(0, 300).map(l => `
+        <tr>
+          <td>${escapeHtml(l.timestamp)}</td>
+          <td>${escapeHtml(l.action)}</td>
+          <td>${escapeHtml(l.actor)}</td>
+          <td>${escapeHtml(l.target_date)}</td>
+          <td>${escapeHtml(l.target_culto_id)}</td>
+          <td><code>${escapeHtml(l.details_json || "")}</code></td>
+          <td>${escapeHtml(l.result)}</td>
+          <td>${escapeHtml(l.message)}</td>
+        </tr>
+      `).join("");
+
+      wrap.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Quando</th><th>Ação</th><th>Ator</th><th>Data</th><th>Culto</th><th>Detalhes</th><th>OK?</th><th>Msg</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <p class="muted">Mostrando até 300 itens.</p>
+      `;
+    }
+
+    /******** Init ********/
+    window.addEventListener("DOMContentLoaded", async () => {
+      loadFromStorage();
+
+      const d = new Date();
+      state.year = d.getFullYear();
+      state.month = d.getMonth();
+
+      $("prevMonth").onclick = async () => {
+        state.month -= 1;
+        if (state.month < 0) { state.month = 11; state.year -= 1; }
+        try { await loadMonth(state.year, state.month); } catch (e) { setStatus(e.message, true); }
+      };
+
+      $("nextMonth").onclick = async () => {
+        state.month += 1;
+        if (state.month > 11) { state.month = 0; state.year += 1; }
+        try { await loadMonth(state.year, state.month); } catch (e) { setStatus(e.message, true); }
+      };
+
+      $("saveName").onclick = () => {
+        saveToStorage();
+        setStatus("Nome salvo.");
+        if (state.dayData) renderDay(state.dayData);
+      };
+
+      $("closeModal").onclick = closeModal;
+      $("modal").addEventListener("click", (e) => { if (e.target.id === "modal") closeModal(); });
+
+      $("openAdmin").onclick = () => {
+        loadFromStorage();
+        setAdminDefaults();
+        openAdminModal();
+      };
+
+      $("closeAdmin").onclick = closeAdminModal;
+      $("adminModal").addEventListener("click", (e) => { if (e.target.id === "adminModal") closeAdminModal(); });
+
+      $("saveAdmin").onclick = () => { saveToStorage(); alert("Código admin salvo."); };
+      $("admCreate").onclick = adminCreate;
+      $("loadAudit").onclick = loadAudit;
+
+      try {
+        await loadMonth(state.year, state.month);
+      } catch (e) {
+        setStatus(`Erro ao carregar: ${e.message}`, true);
+      }
+    });
+  </script>
+</body>
+</html>
