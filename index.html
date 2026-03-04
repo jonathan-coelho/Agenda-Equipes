@@ -358,10 +358,15 @@ function saveSt(){localStorage.setItem("mm_name",$("nameInput").value.trim());lo
 async function apiGet(p){
   const url=new URL(API_URL);Object.entries(p).forEach(([k,v])=>url.searchParams.set(k,v));
   const r=await fetch(url.toString());const j=await r.json();if(!j.ok)throw new Error(j.error||"Erro API");return j;
-}
-async function apiPost(body){
-  const r=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-  const j=await r.json();if(!j.ok)throw new Error(j.error||"Erro API");return j;
+
+async function apiPost(body) {
+  // Envia como GET com payload em base64 para evitar preflight CORS
+  const url = new URL(API_URL);
+  url.searchParams.set("payload", btoa(unescape(encodeURIComponent(JSON.stringify(body)))));
+  const res = await fetch(url.toString());
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || "Erro API");
+  return json;
 }
 
 function todayISO(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;}
