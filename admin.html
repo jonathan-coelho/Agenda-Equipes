@@ -500,6 +500,7 @@
 
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycby2cYL0lMX9i72Tf1th3FxvoEaWZgDlne17LGTV_LTmjJV2aLvfUE_vVYx-lMrSiYBY/exec";
+
 const ROLES = ["Mesa","Corte","Cam 1","Cam 2","Cam 3","Vmix"];
 const $ = id => document.getElementById(id);
 let ADMIN_CODE = "";
@@ -610,9 +611,12 @@ function showPage(id){
 // ── DASHBOARD ──
 async function loadDashboard(){
   const today=todayISO();
-  const y=new Date().getFullYear(), m=new Date().getMonth();
-  const from=`${y}-${String(m+1).padStart(2,"0")}-01`;
-  const to=`${y}-${String(m+1).padStart(2,"0")}-${new Date(y,m+1,0).getDate()}`;
+  // Busca 3 meses à frente para garantir que cultos futuros apareçam
+  const dFrom=new Date(); dFrom.setDate(1);
+  const dTo=new Date(); dTo.setMonth(dTo.getMonth()+3);
+  const pad=n=>String(n).padStart(2,"0");
+  const from=`${dFrom.getFullYear()}-${pad(dFrom.getMonth()+1)}-01`;
+  const to=`${dTo.getFullYear()}-${pad(dTo.getMonth()+1)}-${new Date(dTo.getFullYear(),dTo.getMonth()+1,0).getDate()}`;
 
   try{
     const cal=await apiGet({action:"calendar",from,to});
@@ -637,7 +641,7 @@ async function loadDashboard(){
     const upcomingDays=Object.entries(days)
       .filter(([d])=>d>=today)
       .sort(([a],[b])=>a.localeCompare(b))
-      .slice(0,8);
+      .slice(0,15);
 
     if(!upcomingDays.length){
       $("upcomingList").innerHTML=`<div class="empty-state"><div class="ei">📅</div><p>Nenhum culto próximo encontrado</p></div>`;
@@ -718,7 +722,7 @@ async function loadCultos(){
         const ok=await confirm("⚠️","Cancelar Culto",`Cancelar o culto "${btn.dataset.title}" de ${fmtDate(btn.dataset.date)}? Esta ação não pode ser desfeita.`,"Cancelar Culto","btn-danger");
         if(!ok)return;
         try{
-          await apiPost({action:"admin_cancel_culto",adminCode:ADMIN_CODE,culto_id:btn.dataset.cancel});
+          await apiPost({action:"admin_cancel_culto",adminCode:ADMIN_CODE,culto_id:btn.dataset.cancel,isAdmin:true});
           toast("Culto cancelado!");
           loadCultos();
         }catch(e){toast(e.message,"err");}
@@ -772,7 +776,7 @@ async function criarCulto(){
   if(!date||!hora)return toast("Preencha data e horário","warn");
   $("criarBtn").disabled=true;$("criarStatus").textContent="Criando...";
   try{
-    await apiPost({action:"admin_create_culto",adminCode:ADMIN_CODE,date,turno,hora,titulo});
+    await apiPost({action:"admin_create_culto",adminCode:ADMIN_CODE,date,turno,hora,titulo,isAdmin:true});
     toast("Culto criado com sucesso!");
     $("criarStatus").textContent="✓ Criado!";
     $("criarData").value="";$("criarTitulo").value="";
@@ -806,7 +810,7 @@ async function criarLote(){
   let created=0,errors=0;
   for(const date of dates){
     try{
-      await apiPost({action:"admin_create_culto",adminCode:ADMIN_CODE,date,turno,hora,titulo});
+      await apiPost({action:"admin_create_culto",adminCode:ADMIN_CODE,date,turno,hora,titulo,isAdmin:true});
       created++;
     }catch(_){errors++;}
     $("loteStatus").textContent=`Criando ${created+errors}/${dates.length}...`;
