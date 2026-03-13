@@ -156,12 +156,21 @@
     .rwho{font-size:11px;color:var(--text-3)}
     .rwho.vacant{font-style:italic}
     .rwho.mine{color:var(--success);font-weight:500}
-    .rwho-name{font-size:12px;font-weight:600;margin-top:1px}
-    .rwho-name.mine{color:var(--success)}
-    .rwho-name.other{color:var(--text)}
-    .rrow-filled{background:rgba(255,255,255,.02)}
-    .rrow-filled .ricon.full{background:rgba(201,169,110,.08);border-color:rgba(201,169,110,.25)}
     .rbtns{display:flex;gap:5px}
+    .rrow.occupied{background:rgba(255,255,255,.025)}
+    .rrow.occupied:hover{background:rgba(255,255,255,.04)}
+    .rname-who{font-size:12px;font-weight:600;color:var(--text);margin-top:2px}
+    .rname-who.is-me{color:var(--success)}
+    .rname-who.is-me::before{content:"✓ "}
+    #successPopup{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.75);opacity:0;pointer-events:none;transition:opacity .25s}
+    #successPopup.open{opacity:1;pointer-events:all}
+    .popup-box{background:var(--surface2);border:1px solid rgba(125,211,168,.35);border-radius:16px;padding:36px 40px;text-align:center;max-width:340px;width:90%;transform:scale(.92);transition:transform .25s}
+    #successPopup.open .popup-box{transform:scale(1)}
+    .popup-icon{font-size:48px;margin-bottom:16px}
+    .popup-title{font-family:var(--serif);font-size:22px;font-weight:700;color:#fff;margin-bottom:8px}
+    .popup-msg{font-size:13px;color:var(--text-2);margin-bottom:24px;line-height:1.5}
+    .popup-btn{background:var(--success);color:#000;border:none;border-radius:8px;padding:11px 28px;font-size:13px;font-weight:700;cursor:pointer;transition:opacity .15s}
+    .popup-btn:hover{opacity:.85}
 
     /* TOAST */
     .twrap{position:fixed;bottom:22px;right:22px;z-index:9998;display:flex;flex-direction:column;gap:8px}
@@ -352,7 +361,8 @@ async function openDay(iso){
 }
 
 function renderDay(day){
-  const body=$("dayBody");body.innerHTML="";const name=$("nameInput").value.trim();
+  const body=$("dayBody");body.innerHTML="";
+  const name=$("nameInput").value.trim();
   TURNOS.forEach(t=>{
     const cultos=day.cultos[t.key]||[];
     const block=document.createElement("div");block.className="tblock";
@@ -360,36 +370,44 @@ function renderDay(day){
     const inner=document.createElement("div");inner.className="tinner";
     if(!cultos.length){inner.innerHTML=`<div class="empty">Nenhum culto cadastrado neste turno</div>`;}
     cultos.forEach(c=>{
-      const filled=ROLES.filter(r=>c.roles[r]).length;
+      const filled=ROLES.filter(r=>c.roles&&c.roles[r]).length;
+      const rawH=(c.hora||"").toString();
+      const horaStr=rawH.includes("1899")?rawH.substring(16,21):rawH;
       const card=document.createElement("div");card.className="ccard";
-      const dots=ROLES.map(r=>`<div class="pdot ${c.roles[r]?"on":""}"></div>`).join("");
-      const horaStr=(c.hora&&c.hora.toString().includes("1899"))?c.hora.toString().substring(16,21):c.hora;
-      card.innerHTML=`<div class="chead"><div class="cinfo"><div class="chora">${esc(horaStr)}</div><div class="cname">${esc(c.titulo||"Culto")}</div><div class="cfill" id="cfill-${c.culto_id}">${filled}/6 vagas preenchidas</div></div><div class="drow" id="dots-${c.culto_id}">${dots}</div></div><div class="rgrid" id="rg-${c.culto_id}"></div>`;
-      const rg=card.querySelector(`#rg-${c.culto_id}`);const ok=name.length>=2;
+      const dots=ROLES.map(r=>`<div class="pdot ${c.roles&&c.roles[r]?"on":""}"></div>`).join("");
+      card.innerHTML=`<div class="chead"><div class="cinfo"><div class="chora">${esc(horaStr)}</div><div class="cname">${esc(c.titulo||"Culto")}</div><div class="cfill">${filled}/6 vagas preenchidas</div></div><div class="drow">${dots}</div></div><div class="rgrid" id="rg-${c.culto_id}"></div>`;
+      const rg=card.querySelector(`#rg-${c.culto_id}`);
+      const ok=name.length>=2;
       ROLES.forEach(role=>{
-        const who=c.roles[role],isMe=who&&who.toLowerCase()===name.toLowerCase();
-        const row=document.createElement("div");row.className=`rrow${who?" rrow-filled":""}`;
+        const who=(c.roles&&c.roles[role])||null;
+        const isMe=!!(who&&name&&who.toLowerCase()===name.toLowerCase());
+        const row=document.createElement("div");
+        row.className=who?"rrow occupied":"rrow";
+        const btns=document.createElement("div");btns.className="rbtns";
         if(who){
-          row.innerHTML=`<div class="rleft"><div class="ricon full">${ICONS[role]||"🎥"}</div><div><div class="rname">${esc(role)}</div><div class="rwho-name ${isMe?"mine":"other"}">${isMe?"✓ ":""}${esc(who)}</div></div></div><div class="rbtns"></div>`;
-        } else {
-          row.innerHTML=`<div class="rleft"><div class="ricon empty">${ICONS[role]||"🎥"}</div><div><div class="rname">${esc(role)}</div><div class="rwho vacant">Vago</div></div></div><div class="rbtns"></div>`;
-        }
-        const btns=row.querySelector(".rbtns");
-        if(!who){
-          const bI=document.createElement("button");bI.className="btn btn-sm btn-in";bI.textContent="Entrar";bI.disabled=!ok;
-          bI.onclick=async()=>{bI.disabled=true;try{await apiPost({action:"signup",culto_id:c.culto_id,name,role});toast(`Inscrito em ${role}!`);await refresh();}catch(e){toast(e.message,"err");bI.disabled=false;}};
-          btns.appendChild(bI);
-        }
-        if(isMe){
-          const bO=document.createElement("button");bO.className="btn btn-sm btn-out";bO.textContent="Sair";
-          bO.onclick=async()=>{bO.disabled=true;try{await apiPost({action:"remove",culto_id:c.culto_id,name});toast("Removido da vaga.");await refresh();}catch(e){toast(e.message,"err");bO.disabled=false;}};
-          btns.appendChild(bO);
-        }
-        if(who){
+          row.innerHTML=`<div class="rleft"><div class="ricon full">${ICONS[role]||"🎥"}</div><div><div class="rname">${esc(role)}</div><div class="rname-who ${isMe?"is-me":""}">${esc(who)}</div></div></div>`;
+          if(isMe){
+            const bO=document.createElement("button");bO.className="btn btn-sm btn-out";bO.textContent="Sair";
+            bO.onclick=async()=>{bO.disabled=true;try{await apiPost({action:"remove",culto_id:c.culto_id,name});toast("Removido da vaga.");await refresh();}catch(e){toast(e.message,"err");bO.disabled=false;}};
+            btns.appendChild(bO);
+          }
           const bS=document.createElement("button");bS.className="btn btn-sm btn-sub";bS.textContent="Substituir";
           bS.onclick=async()=>{const fr=prompt(`Substituir "${role}". Quem está saindo?`,who||"");if(!fr)return;const to=prompt("Quem vai entrar?","");if(!to)return;try{await apiPost({action:"substitute",culto_id:c.culto_id,role,from:fr,to});toast("Substituição realizada!");await refresh();}catch(e){toast(e.message,"err");};};
           btns.appendChild(bS);
+        } else {
+          row.innerHTML=`<div class="rleft"><div class="ricon empty">${ICONS[role]||"🎥"}</div><div><div class="rname">${esc(role)}</div><div class="rwho vacant">Vago</div></div></div>`;
+          const bI=document.createElement("button");bI.className="btn btn-sm btn-in";bI.textContent="Entrar";bI.disabled=!ok;
+          bI.onclick=async()=>{
+            bI.disabled=true;
+            try{
+              await apiPost({action:"signup",culto_id:c.culto_id,name,role});
+              showPopup(`Você foi inscrito como ${role} no culto das ${horaStr}! 🎉`);
+              await refresh();
+            }catch(e){toast(e.message,"err");bI.disabled=false;}
+          };
+          btns.appendChild(bI);
         }
+        row.appendChild(btns);
         rg.appendChild(row);
       });
       inner.appendChild(card);
@@ -398,10 +416,14 @@ function renderDay(day){
   });
 }
 
+function showPopup(msg){
+  document.getElementById("popupMsg").textContent=msg;
+  document.getElementById("successPopup").classList.add("open");
+}
+
 async function refresh(){
   const day=await apiGet({action:"list",date:st.date});
   st.day=day;renderDay(day);
-  // Recarrega o calendário para atualizar badges de vagas
   try{await loadMonth(st.year,st.month);}catch(_){}
 }
 
@@ -416,5 +438,15 @@ window.addEventListener("DOMContentLoaded",async()=>{
   try{await loadMonth(st.year,st.month);}catch(e){setStatus(`Erro: ${e.message}`,false,true);}
 });
 </script>
+
+<!-- POPUP SUCESSO -->
+<div id="successPopup">
+  <div class="popup-box">
+    <div class="popup-icon">🎉</div>
+    <div class="popup-title">Inscrição realizada!</div>
+    <div class="popup-msg" id="popupMsg">Você foi inscrito com sucesso.</div>
+    <button class="popup-btn" onclick="document.getElementById('successPopup').classList.remove('open')">OK</button>
+  </div>
+</div>
 </body>
 </html>
