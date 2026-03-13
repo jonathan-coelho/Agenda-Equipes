@@ -355,10 +355,11 @@ function renderDay(day){
     const inner=document.createElement("div");inner.className="tinner";
     if(!cultos.length){inner.innerHTML=`<div class="empty">Nenhum culto cadastrado neste turno</div>`;}
     cultos.forEach(c=>{
-      const filled=Object.values(c.roles).filter(Boolean).length;
+      const filled=ROLES.filter(r=>c.roles[r]).length;
       const card=document.createElement("div");card.className="ccard";
       const dots=ROLES.map(r=>`<div class="pdot ${c.roles[r]?"on":""}"></div>`).join("");
-      card.innerHTML=`<div class="chead"><div class="cinfo"><div class="chora">${esc(c.hora)}</div><div class="cname">${esc(c.titulo||"Culto")}</div><div class="cfill">${filled}/6 vagas preenchidas</div></div><div class="drow">${dots}</div></div><div class="rgrid" id="rg-${c.culto_id}"></div>`;
+      const horaStr=(c.hora&&c.hora.toString().includes("1899"))?c.hora.toString().substring(16,21):c.hora;
+      card.innerHTML=`<div class="chead"><div class="cinfo"><div class="chora">${esc(horaStr)}</div><div class="cname">${esc(c.titulo||"Culto")}</div><div class="cfill">${filled}/6 vagas preenchidas</div></div><div class="drow">${dots}</div></div><div class="rgrid" id="rg-${c.culto_id}"></div>`;
       const rg=card.querySelector(`#rg-${c.culto_id}`);const ok=name.length>=2;
       ROLES.forEach(role=>{
         const who=c.roles[role],isMe=who&&who.toLowerCase()===name.toLowerCase();
@@ -382,6 +383,8 @@ function renderDay(day){
 async function refresh(){
   const day=await apiGet({action:"list",date:st.date});
   st.day=day;renderDay(day);
+  // Recarrega o calendário para atualizar badges de vagas
+  try{await loadMonth(st.year,st.month);}catch(_){}
 }
 
 window.addEventListener("DOMContentLoaded",async()=>{
