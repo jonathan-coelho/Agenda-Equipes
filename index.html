@@ -156,6 +156,11 @@
     .rwho{font-size:11px;color:var(--text-3)}
     .rwho.vacant{font-style:italic}
     .rwho.mine{color:var(--success);font-weight:500}
+    .rwho-name{font-size:12px;font-weight:600;margin-top:1px}
+    .rwho-name.mine{color:var(--success)}
+    .rwho-name.other{color:var(--text)}
+    .rrow-filled{background:rgba(255,255,255,.02)}
+    .rrow-filled .ricon.full{background:rgba(201,169,110,.08);border-color:rgba(201,169,110,.25)}
     .rbtns{display:flex;gap:5px}
 
     /* TOAST */
@@ -359,20 +364,33 @@ function renderDay(day){
       const card=document.createElement("div");card.className="ccard";
       const dots=ROLES.map(r=>`<div class="pdot ${c.roles[r]?"on":""}"></div>`).join("");
       const horaStr=(c.hora&&c.hora.toString().includes("1899"))?c.hora.toString().substring(16,21):c.hora;
-      card.innerHTML=`<div class="chead"><div class="cinfo"><div class="chora">${esc(horaStr)}</div><div class="cname">${esc(c.titulo||"Culto")}</div><div class="cfill">${filled}/6 vagas preenchidas</div></div><div class="drow">${dots}</div></div><div class="rgrid" id="rg-${c.culto_id}"></div>`;
+      card.innerHTML=`<div class="chead"><div class="cinfo"><div class="chora">${esc(horaStr)}</div><div class="cname">${esc(c.titulo||"Culto")}</div><div class="cfill" id="cfill-${c.culto_id}">${filled}/6 vagas preenchidas</div></div><div class="drow" id="dots-${c.culto_id}">${dots}</div></div><div class="rgrid" id="rg-${c.culto_id}"></div>`;
       const rg=card.querySelector(`#rg-${c.culto_id}`);const ok=name.length>=2;
       ROLES.forEach(role=>{
         const who=c.roles[role],isMe=who&&who.toLowerCase()===name.toLowerCase();
-        const row=document.createElement("div");row.className="rrow";
-        row.innerHTML=`<div class="rleft"><div class="ricon ${who?"full":"empty"}">${ICONS[role]||"🎥"}</div><div><div class="rname">${esc(role)}</div><div class="rwho ${!who?"vacant":isMe?"mine":""}">${who?esc(who):"Vago"}</div></div></div><div class="rbtns"></div>`;
+        const row=document.createElement("div");row.className=`rrow${who?" rrow-filled":""}`;
+        if(who){
+          row.innerHTML=`<div class="rleft"><div class="ricon full">${ICONS[role]||"🎥"}</div><div><div class="rname">${esc(role)}</div><div class="rwho-name ${isMe?"mine":"other"}">${isMe?"✓ ":""}${esc(who)}</div></div></div><div class="rbtns"></div>`;
+        } else {
+          row.innerHTML=`<div class="rleft"><div class="ricon empty">${ICONS[role]||"🎥"}</div><div><div class="rname">${esc(role)}</div><div class="rwho vacant">Vago</div></div></div><div class="rbtns"></div>`;
+        }
         const btns=row.querySelector(".rbtns");
-        const bI=document.createElement("button");bI.className="btn btn-sm btn-in";bI.textContent="Entrar";bI.disabled=!!who||!ok;
-        bI.onclick=async()=>{bI.disabled=true;try{await apiPost({action:"signup",culto_id:c.culto_id,name,role});toast(`Inscrito em ${role}!`);await refresh();}catch(e){toast(e.message,"err");bI.disabled=false;}};
-        const bO=document.createElement("button");bO.className="btn btn-sm btn-out";bO.textContent="Sair";bO.disabled=!isMe||!ok;
-        bO.onclick=async()=>{bO.disabled=true;try{await apiPost({action:"remove",culto_id:c.culto_id,name});toast("Removido da vaga.");await refresh();}catch(e){toast(e.message,"err");bO.disabled=false;}};
-        const bS=document.createElement("button");bS.className="btn btn-sm btn-sub";bS.textContent="Substituir";bS.disabled=!who||!ok;
-        bS.onclick=async()=>{const fr=prompt(`Substituir "${role}". Quem está saindo?`,who||"");if(!fr)return;const to=prompt("Quem vai entrar?","");if(!to)return;try{await apiPost({action:"substitute",culto_id:c.culto_id,role,from:fr,to});toast("Substituição realizada!");await refresh();}catch(e){toast(e.message,"err");}};
-        btns.appendChild(bI);btns.appendChild(bO);btns.appendChild(bS);rg.appendChild(row);
+        if(!who){
+          const bI=document.createElement("button");bI.className="btn btn-sm btn-in";bI.textContent="Entrar";bI.disabled=!ok;
+          bI.onclick=async()=>{bI.disabled=true;try{await apiPost({action:"signup",culto_id:c.culto_id,name,role});toast(`Inscrito em ${role}!`);await refresh();}catch(e){toast(e.message,"err");bI.disabled=false;}};
+          btns.appendChild(bI);
+        }
+        if(isMe){
+          const bO=document.createElement("button");bO.className="btn btn-sm btn-out";bO.textContent="Sair";
+          bO.onclick=async()=>{bO.disabled=true;try{await apiPost({action:"remove",culto_id:c.culto_id,name});toast("Removido da vaga.");await refresh();}catch(e){toast(e.message,"err");bO.disabled=false;}};
+          btns.appendChild(bO);
+        }
+        if(who){
+          const bS=document.createElement("button");bS.className="btn btn-sm btn-sub";bS.textContent="Substituir";
+          bS.onclick=async()=>{const fr=prompt(`Substituir "${role}". Quem está saindo?`,who||"");if(!fr)return;const to=prompt("Quem vai entrar?","");if(!to)return;try{await apiPost({action:"substitute",culto_id:c.culto_id,role,from:fr,to});toast("Substituição realizada!");await refresh();}catch(e){toast(e.message,"err");};};
+          btns.appendChild(bS);
+        }
+        rg.appendChild(row);
       });
       inner.appendChild(card);
     });
