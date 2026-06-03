@@ -192,6 +192,7 @@
 </head>
 <body>
 
+<!-- LOGIN SCREEN -->
 <div id="loginScreen">
   <div class="lx"></div>
   <div class="login-box">
@@ -211,6 +212,7 @@
   </div>
 </div>
 
+<!-- ADMIN APP -->
 <div id="adminApp">
   <header class="topbar">
     <div class="brand">
@@ -228,6 +230,7 @@
   </header>
 
   <div class="admin-layout">
+    <!-- SIDEBAR -->
     <nav class="sidebar">
       <div class="sidebar-section">Geral</div>
       <div class="nav-item active" data-page="dashboard"><span class="ni">📊</span> Dashboard</div>
@@ -242,8 +245,10 @@
       <div class="nav-item" data-page="auditoria"><span class="ni">📋</span> Auditoria</div>
     </nav>
 
+    <!-- MAIN CONTENT -->
     <main class="content" id="mainContent">
 
+      <!-- DASHBOARD -->
       <div class="page active" id="page-dashboard">
         <div class="page-header">
           <div>
@@ -261,6 +266,7 @@
         </div>
       </div>
 
+      <!-- CULTOS -->
       <div class="page" id="page-cultos">
         <div class="page-header">
           <div>
@@ -278,6 +284,7 @@
         </div>
       </div>
 
+      <!-- ESCALA -->
       <div class="page" id="page-escala">
         <div class="page-header">
           <div>
@@ -292,6 +299,7 @@
         <div id="escalaContent"><div class="empty-state"><div class="ei">👥</div><p>Selecione uma data para ver a escala</p></div></div>
       </div>
 
+      <!-- CRIAR CULTO -->
       <div class="page" id="page-criar">
         <div class="page-header">
           <div>
@@ -379,11 +387,12 @@
         </div>
       </div>
 
+      <!-- SUBSTITUIÇÃO -->
       <div class="page" id="page-substituir">
         <div class="page-header">
           <div>
-            <div class="page-title">Substituição Manual</div>
-            <div class="page-sub">Trocar voluntário em uma vaga</div>
+            <div class="page-title">Gestão de Vagas</div>
+            <div class="page-sub">Substituir, adicionar ou remover voluntários</div>
           </div>
         </div>
         <div class="card">
@@ -402,7 +411,7 @@
           </div>
         </div>
         <div class="card" id="subFormCard" style="display:none">
-          <div class="card-header"><span class="card-title">Dados da Substituição</span></div>
+          <div class="card-header"><span class="card-title">Ações na Vaga</span></div>
           <div class="card-body">
             <div class="form-grid">
               <div class="form-group">
@@ -421,22 +430,25 @@
                 </select>
               </div>
               <div class="form-group">
-                <div class="fl">Quem está saindo</div>
-                <input id="subFrom" type="text" placeholder="Nome atual" readonly>
+                <div class="fl">Status Atual (Quem sai)</div>
+                <input id="subFrom" type="text" placeholder="[ Vaga Vazia ]" readonly>
               </div>
               <div class="form-group">
                 <div class="fl">Quem vai entrar</div>
-                <input id="subTo" type="text" placeholder="Novo voluntário">
+                <!-- NOVO: Adicionado auto-completar para facilitar as digitações do admin -->
+                <input id="subTo" type="text" placeholder="Nome do novo voluntário" list="adminNameList">
+                <datalist id="adminNameList"></datalist>
               </div>
             </div>
-            <div style="margin-top:16px; display:flex; gap:10px;">
+            <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
               <button class="btn btn-p" id="subConfirmBtn">🔄 Confirmar Ação</button>
-              <button class="btn btn-ghost btn-danger-ghost" id="subRemoveBtn" style="display:none;">🗑️ Apenas Remover</button>
+              <button class="btn btn-danger-ghost" id="subRemoveBtn" style="display:none;">🗑️ Apenas Remover</button>
             </div>
           </div>
         </div>
       </div>
 
+      <!-- AUDITORIA -->
       <div class="page" id="page-auditoria">
         <div class="page-header">
           <div>
@@ -475,6 +487,7 @@
   </div>
 </div>
 
+<!-- CONFIRM DIALOG -->
 <div class="confirm-overlay" id="confirmOverlay">
   <div class="confirm-box">
     <div class="confirm-icon" id="confirmIcon">⚠️</div>
@@ -553,6 +566,29 @@ function confirm(icon, title, msg, okLabel="Confirmar", okCls="btn-danger"){
     $("confirmCancel").addEventListener("click",cancel);
   });
 }
+
+// NOVO: Busca de nomes cadastrados e formatação automática ao digitar no painel do admin
+async function fetchNamesForAutocomplete() {
+  try {
+    const res = await apiGet({ action: "names" });
+    if (res.names && res.names.length > 0) {
+      const datalist = $("adminNameList");
+      datalist.innerHTML = res.names.map(name => `<option value="${esc(name)}">`).join("");
+    }
+  } catch (e) {
+    console.error("Não foi possível carregar o autocomplete de nomes no Admin", e);
+  }
+}
+
+// Formata o texto do "Quem vai entrar" em Proper Case em tempo real
+$("subTo").addEventListener("input", function(e) {
+  const exceptions = ["de", "da", "do", "das", "dos", "e"];
+  let val = this.value.toLowerCase().split(' ').map((word, i) => {
+    if (exceptions.includes(word) && i !== 0) return word;
+    return word.charAt(0).toUpperCase() + word.slice(1);
+  }).join(' ');
+  this.value = val;
+});
 
 // ── LOGIN ──
 async function tryLogin(){
@@ -635,6 +671,7 @@ async function loadDashboard(){
     } else {
       $("upcomingList").innerHTML=upcomingDays.map(([date,turnos])=>{
         const badges=Object.entries(turnos).filter(([,t])=>t.cultos>0).map(([tk,t])=>{
+          const pct=t.capacity>0?Math.round((t.filled/t.capacity)*100):0;
           return `<span class="pill pill-${turnoCls(tk)}">${turnoLabel(tk)} ${t.filled}/${t.capacity}</span>`;
         }).join(" ");
         return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
@@ -805,7 +842,7 @@ async function criarLote(){
   toast(errors?`${created} criados, ${errors} falharam`:`${created} cultos criados!`,errors?"warn":"ok");
 }
 
-// ── SUBSTITUIÇÃO MANUAL (FLUXO 100% ADMIN) ──
+// ── GESTÃO DE VAGAS ──
 function updateFromState(){
   const cid=$("subCultoSel").value, role=$("subRole").value;
   const culto=_subCultosAll.find(c=>c.culto_id===cid);
@@ -854,16 +891,15 @@ async function doSubstituir(){
   $("subConfirmBtn").disabled=true;
   try {
     if(from) {
-      // IMPORTANTE: Agora enviamos o adminCode! Burlar 7 dias ativado.
       await apiPost({action:"substitute", culto_id, role, from, to, adminCode:ADMIN_CODE});
       toast(`Substituição de ${from} por ${to} realizada com sucesso!`);
     } else {
-      // Vaga vazia -> Faz inscrição direta pulando restrições de limites de dias
       await apiPost({action:"signup", culto_id, role, name:to, adminCode:ADMIN_CODE});
       toast(`${to} encaixado(a) na função ${role}!`);
     }
     $("subTo").value="";
-    await loadSubCultos(); // Recarrega os dados locais
+    await loadSubCultos(); 
+    fetchNamesForAutocomplete(); // Atualiza a lista caso seja um nome novo
   }catch(e){
     toast(e.message,"err");
   }finally{
@@ -977,12 +1013,14 @@ window.addEventListener("DOMContentLoaded",()=>{
   $("criarBtn").addEventListener("click",criarCulto);
   $("loteBtn").addEventListener("click",criarLote);
 
-  // Gatilhos da ferramenta de Substituição Manual do Admin
   $("subLoadBtn").addEventListener("click",loadSubCultos);
   $("subConfirmBtn").addEventListener("click",doSubstituir);
   $("subRemoveBtn").addEventListener("click",doRemover);
 
   $("auditLoad").addEventListener("click",loadAudit);
+  
+  // Puxa os nomes para preencher o datalist
+  fetchNamesForAutocomplete();
 });
 </script>
 </body>
