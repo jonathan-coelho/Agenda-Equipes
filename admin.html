@@ -110,6 +110,7 @@
     input,select,textarea{background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--r-sm);padding:9px 12px;font-family:var(--sans);font-size:13px;outline:none;transition:border-color .2s,box-shadow .2s;width:100%}
     input:focus,select:focus,textarea:focus{border-color:var(--border-lg);box-shadow:0 0 0 3px rgba(255,255,255,.04)}
     input::placeholder,textarea::placeholder{color:var(--text-3)}
+    input[readonly] {opacity: 0.7; cursor: not-allowed;}
     textarea{resize:vertical;min-height:80px}
     select option{background:var(--surface2)}
 
@@ -191,7 +192,6 @@
 </head>
 <body>
 
-<!-- LOGIN SCREEN -->
 <div id="loginScreen">
   <div class="lx"></div>
   <div class="login-box">
@@ -211,7 +211,6 @@
   </div>
 </div>
 
-<!-- ADMIN APP -->
 <div id="adminApp">
   <header class="topbar">
     <div class="brand">
@@ -229,7 +228,6 @@
   </header>
 
   <div class="admin-layout">
-    <!-- SIDEBAR -->
     <nav class="sidebar">
       <div class="sidebar-section">Geral</div>
       <div class="nav-item active" data-page="dashboard"><span class="ni">📊</span> Dashboard</div>
@@ -244,10 +242,8 @@
       <div class="nav-item" data-page="auditoria"><span class="ni">📋</span> Auditoria</div>
     </nav>
 
-    <!-- MAIN CONTENT -->
     <main class="content" id="mainContent">
 
-      <!-- DASHBOARD -->
       <div class="page active" id="page-dashboard">
         <div class="page-header">
           <div>
@@ -265,7 +261,6 @@
         </div>
       </div>
 
-      <!-- CULTOS -->
       <div class="page" id="page-cultos">
         <div class="page-header">
           <div>
@@ -283,7 +278,6 @@
         </div>
       </div>
 
-      <!-- ESCALA -->
       <div class="page" id="page-escala">
         <div class="page-header">
           <div>
@@ -298,7 +292,6 @@
         <div id="escalaContent"><div class="empty-state"><div class="ei">👥</div><p>Selecione uma data para ver a escala</p></div></div>
       </div>
 
-      <!-- CRIAR CULTO -->
       <div class="page" id="page-criar">
         <div class="page-header">
           <div>
@@ -386,12 +379,11 @@
         </div>
       </div>
 
-      <!-- SUBSTITUIÇÃO -->
       <div class="page" id="page-substituir">
         <div class="page-header">
           <div>
-            <div class="page-title">Substituição Manual</div>
-            <div class="page-sub">Trocar voluntário em uma vaga</div>
+            <div class="page-title">Gestão de Vagas</div>
+            <div class="page-sub">Substituir, adicionar ou remover voluntários</div>
           </div>
         </div>
         <div class="card">
@@ -410,7 +402,7 @@
           </div>
         </div>
         <div class="card" id="subFormCard" style="display:none">
-          <div class="card-header"><span class="card-title">Dados da Substituição</span></div>
+          <div class="card-header"><span class="card-title">Ações na Vaga</span></div>
           <div class="card-body">
             <div class="form-grid">
               <div class="form-group">
@@ -429,22 +421,22 @@
                 </select>
               </div>
               <div class="form-group">
-                <div class="fl">Quem está saindo</div>
-                <input id="subFrom" type="text" placeholder="Nome atual">
+                <div class="fl">Status Atual (Quem sai)</div>
+                <input id="subFrom" type="text" placeholder="[ Vaga Vazia ]" readonly>
               </div>
               <div class="form-group">
                 <div class="fl">Quem vai entrar</div>
-                <input id="subTo" type="text" placeholder="Novo voluntário">
+                <input id="subTo" type="text" placeholder="Nome do novo voluntário">
               </div>
             </div>
-            <div style="margin-top:16px">
-              <button class="btn btn-p" id="subConfirmBtn">🔄 Confirmar Substituição</button>
+            <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
+              <button class="btn btn-p" id="subConfirmBtn">🔄 Confirmar Ação</button>
+              <button class="btn btn-danger-ghost" id="subRemoveBtn" style="display:none;">🗑️ Apenas Remover</button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- AUDITORIA -->
       <div class="page" id="page-auditoria">
         <div class="page-header">
           <div>
@@ -483,7 +475,6 @@
   </div>
 </div>
 
-<!-- CONFIRM DIALOG -->
 <div class="confirm-overlay" id="confirmOverlay">
   <div class="confirm-box">
     <div class="confirm-icon" id="confirmIcon">⚠️</div>
@@ -503,6 +494,7 @@ const API_URL = "https://script.google.com/macros/s/AKfycby2cYL0lMX9i72Tf1th3Fxv
 const ROLES = ["Mesa","Corte","Cam 1","Cam 2","Cam 3","Vmix"];
 const $ = id => document.getElementById(id);
 let ADMIN_CODE = "";
+let _subCultosAll = []; // Guarda a listagem do dia para a aba de Substituição
 
 // ── UTILS ──
 function toast(msg, type="ok") {
@@ -819,43 +811,95 @@ async function criarLote(){
   toast(errors?`${created} criados, ${errors} falharam`:`${created} cultos criados!`,errors?"warn":"ok");
 }
 
-// ── SUBSTITUIÇÃO ──
+// ── GESTÃO DE VAGAS (SUBSTITUIÇÃO / INSERÇÃO / REMOÇÃO) ──
+function updateFromState(){
+  const cid=$("subCultoSel").value, role=$("subRole").value;
+  const culto=_subCultosAll.find(c=>c.culto_id===cid);
+  
+  if(culto && culto.roles[role]) {
+    // Vaga preenchida (modo substituição ou remoção)
+    $("subFrom").value = culto.roles[role];
+    $("subRemoveBtn").style.display = "inline-flex";
+    $("subConfirmBtn").textContent = "🔄 Substituir Voluntário";
+  } else {
+    // Vaga vazia (modo inscrição)
+    $("subFrom").value = "";
+    $("subFrom").placeholder = "[ Vaga Vazia ]";
+    $("subRemoveBtn").style.display = "none";
+    $("subConfirmBtn").textContent = "➕ Adicionar Voluntário";
+  }
+}
+
 async function loadSubCultos(){
   const date=$("subData").value;
   if(!date)return toast("Selecione uma data","warn");
   $("subCultosWrap").innerHTML=`<span class="spin" style="display:inline-block"></span>`;
   try{
     const day=await apiGet({action:"list",date});
-    const all=[...(day.cultos.MANHA||[]),...(day.cultos.TARDE||[]),...(day.cultos.NOITE||[])];
-    if(!all.length){
+    _subCultosAll=[...(day.cultos.MANHA||[]),...(day.cultos.TARDE||[]),...(day.cultos.NOITE||[])];
+    if(!_subCultosAll.length){
       $("subCultosWrap").innerHTML=`<span style="font-size:12px;color:var(--text-3)">Nenhum culto nesta data.</span>`;
       $("subFormCard").style.display="none";return;
     }
-    $("subCultosWrap").innerHTML=`<span style="font-size:12px;color:var(--success)">✓ ${all.length} culto(s) encontrado(s)</span>`;
-    $("subCultoSel").innerHTML=all.map(c=>`<option value="${c.culto_id}">${turnoLabel(c.turno)} ${c.hora} — ${esc(c.titulo||"Culto")}</option>`).join("");
+    $("subCultosWrap").innerHTML=`<span style="font-size:12px;color:var(--success)">✓ ${_subCultosAll.length} culto(s) encontrado(s)</span>`;
+    $("subCultoSel").innerHTML=_subCultosAll.map(c=>`<option value="${c.culto_id}">${turnoLabel(c.turno)} ${c.hora} — ${esc(c.titulo||"Culto")}</option>`).join("");
     $("subFormCard").style.display="";
-    // Auto-fill 'from' on role select
-    const updateFrom=()=>{
-      const cid=$("subCultoSel").value,role=$("subRole").value;
-      const culto=all.find(c=>c.culto_id===cid);
-      if(culto&&culto.roles[role])$("subFrom").value=culto.roles[role];
-      else $("subFrom").value="";
-    };
-    $("subCultoSel").onchange=updateFrom;$("subRole").onchange=updateFrom;updateFrom();
+    
+    $("subCultoSel").onchange=updateFromState;
+    $("subRole").onchange=updateFromState;
+    updateFromState();
   }catch(e){
     $("subCultosWrap").innerHTML=`<span style="font-size:12px;color:var(--danger)">Erro: ${esc(e.message)}</span>`;
   }
 }
 
 async function doSubstituir(){
-  const culto_id=$("subCultoSel").value,role=$("subRole").value;
-  const from=$("subFrom").value.trim(),to=$("subTo").value.trim();
-  if(!from||!to)return toast("Preencha quem sai e quem entra","warn");
-  try{
-    await apiPost({action:"substitute",culto_id,role,from,to});
-    toast("Substituição realizada!");
+  const culto_id=$("subCultoSel").value, role=$("subRole").value;
+  const from=$("subFrom").value.trim(), to=$("subTo").value.trim();
+  
+  if(!to) return toast("Preencha o nome do novo voluntário","warn");
+
+  $("subConfirmBtn").disabled=true;
+  try {
+    if(from) {
+      // Já tem alguém lá, substitui!
+      // NOVO: adminCode sendo enviado para liberar do "limite de 7 dias e max_per_day"
+      await apiPost({action:"substitute", culto_id, role, from, to, adminCode:ADMIN_CODE});
+      toast(`Substituição de ${from} por ${to} realizada!`);
+    } else {
+      // Estava vazio, faz inscrição direta como admin!
+      await apiPost({action:"signup", culto_id, role, name:to, adminCode:ADMIN_CODE});
+      toast(`${to} foi escalado na vaga de ${role}!`);
+    }
+    
     $("subTo").value="";
-  }catch(e){toast(e.message,"err");}
+    await loadSubCultos(); // Recarrega os dados para mostrar atualização na tela
+  }catch(e){
+    toast(e.message,"err");
+  }finally{
+    $("subConfirmBtn").disabled=false;
+  }
+}
+
+async function doRemover(){
+  const culto_id=$("subCultoSel").value, role=$("subRole").value;
+  const from=$("subFrom").value.trim();
+  if(!from) return;
+
+  const ok=await confirm("🗑️","Remover Voluntário",`Tem certeza que deseja remover ${from} da vaga de ${role}?`,"Remover","btn-danger");
+  if(!ok) return;
+
+  $("subRemoveBtn").disabled=true;
+  try{
+    await apiPost({action:"remove", culto_id, role, name:from, adminCode:ADMIN_CODE});
+    toast(`${from} removido da escala!`);
+    $("subTo").value="";
+    await loadSubCultos(); // Atualiza a tela
+  }catch(e){
+    toast(e.message,"err");
+  }finally{
+    $("subRemoveBtn").disabled=false;
+  }
 }
 
 // ── AUDITORIA ──
@@ -954,9 +998,10 @@ window.addEventListener("DOMContentLoaded",()=>{
   $("criarBtn").addEventListener("click",criarCulto);
   $("loteBtn").addEventListener("click",criarLote);
 
-  // Substituição
+  // Gestão de Vagas / Substituição
   $("subLoadBtn").addEventListener("click",loadSubCultos);
   $("subConfirmBtn").addEventListener("click",doSubstituir);
+  $("subRemoveBtn").addEventListener("click",doRemover);
 
   // Auditoria
   $("auditLoad").addEventListener("click",loadAudit);
